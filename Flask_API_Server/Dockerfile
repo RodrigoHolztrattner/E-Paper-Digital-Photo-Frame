@@ -27,37 +27,21 @@ COPY . .
 # Create volumes for persistent data
 VOLUME [ "/app/config", "/app/images" ]
 
-# Expose ports
-EXPOSE 9999
-EXPOSE 9998
+# Expose ports - explicitly specify protocols
+EXPOSE 9999/tcp
+EXPOSE 9998/udp
 
 # Set environment variables
 ENV FLASK_APP=flask_server.py \
     FLASK_ENV=production \
     PYTHONUNBUFFERED=1 \
-    GUNICORN_WORKERS=4 \
-    GUNICORN_THREADS=2 \
     IMMICH_URL=http://localhost \
     IMMICH_API_KEY="" \
     IMAGE_PATH=/app/images
 
-# Add healthcheck
-HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:9999/ || exit 1
-
-# Create start script
+# Create simple start script
 RUN echo '#!/bin/bash\n\
-exec gunicorn \\\n\
-    --bind 0.0.0.0:9999 \\\n\
-    --workers $GUNICORN_WORKERS \\\n\
-    --threads $GUNICORN_THREADS \\\n\
-    --worker-class eventlet \\\n\
-    --timeout 120 \\\n\
-    --keep-alive 5 \\\n\
-    --log-level info \\\n\
-    --access-logfile - \\\n\
-    --error-logfile - \\\n\
-    "flask_server:app"' > /app/start.sh && \
+exec python -u flask_server.py' > /app/start.sh && \
     chmod +x /app/start.sh
 
 # Run the application

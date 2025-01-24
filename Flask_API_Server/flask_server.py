@@ -626,5 +626,14 @@ def update_immich_config():
 
 # Run the Flask server
 if __name__ == '__main__':
+    # Start the broadcast thread
     threading.Thread(target=broadcast_server_presence, daemon=True).start()
-    socketio.run(app, host='0.0.0.0', port=HTTP_SERVER_PORT)
+    
+    # Run Flask with SocketIO
+    socketio.run(
+        app,
+        host='0.0.0.0',
+        port=HTTP_SERVER_PORT,
+        allow_unsafe_werkzeug=True,
+        debug=False
+    )
