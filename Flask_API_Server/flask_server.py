@@ -161,40 +161,34 @@ threading.Thread(target=cleanup_disconnected_devices, daemon=True).start()
 
 def broadcast_server_presence():
     """Broadcasts server presence on the network"""
-    broadcast_count = 0
-    
-    while True:
-        try:
-            server_ip = get_local_ip()
-            print(f"\n[Broadcast {broadcast_count}] Using IP: {server_ip}")
-            
-            # Create UDP socket with broadcast capability
-            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
-            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-            
-            # Don't bind to specific interface to allow broadcasting on all interfaces
-            sock.bind(('0.0.0.0', 0))
-            
-            message = json.dumps({
-                'type': 'SERVER_BROADCAST',
-                'server_ip': server_ip,
-                'server_port': HTTP_SERVER_PORT
-            })
-            
-            print(f"[Broadcast {broadcast_count}] Sending message: {message}")
-            sock.sendto(message.encode(), ('255.255.255.255', BROADCAST_PORT))
-            print(f"[Broadcast {broadcast_count}] Message sent successfully")
-            
-            # Close the socket after each broadcast
-            sock.close()
-            
-            broadcast_count += 1
-            time.sleep(BROADCAST_INTERVAL)
+    try:
+        server_ip = get_local_ip()
+        print(f"Broadcasting server presence on {server_ip}:{BROADCAST_PORT}")
+        
+        while True:
+            try:
+                sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+                sock.bind(('0.0.0.0', 0))
                 
-        except Exception as e:
-            print(f"[Broadcast {broadcast_count}] Error: {e}")
-            time.sleep(BROADCAST_INTERVAL)
+                message = json.dumps({
+                    'type': 'SERVER_BROADCAST',
+                    'server_ip': server_ip,
+                    'server_port': HTTP_SERVER_PORT
+                })
+                
+                sock.sendto(message.encode(), ('255.255.255.255', BROADCAST_PORT))
+                sock.close()
+                time.sleep(BROADCAST_INTERVAL)
+                    
+            except Exception as e:
+                print(f"Broadcast error: {e}")
+                time.sleep(BROADCAST_INTERVAL)
+                
+    except Exception as e:
+        print(f"Fatal broadcast error: {e}")
+        time.sleep(5)
 
 ################
 # FLASK SERVER #
@@ -283,11 +277,11 @@ def init_transfer():
         # Use device specs stored during registration
         try:
             image_id, image_bytes = immich.get_random_image(
-                album_id=album_id,  # Only pass the album_id
+                album_id=album_id,
                 width=device['width'],
                 height=device['height'], 
-                scale_mode=ImmichScaleMode.CROP,
-                group_id=group_id  # Add group_id parameter
+                scale_mode=ImmichScaleMode(device.get('scale_mode', 'crop')),  # Default to crop if not set
+                group_id=group_id
             )
         except Exception as e:
             print(f"Error retrieving image: {str(e)}")
@@ -477,6 +471,21 @@ def get_device_info(device_id):
         return jsonify(device)
     else:
         return jsonify({'error': 'Device not found'}), 404
+
+@app.route('/devices/<device_id>/config', methods=['PUT'])
+def update_device_config(device_id):
+    try:
+        if device_id not in devices:
+            return jsonify({'error': 'Device not found'}), 404
+            
+        data = request.get_json()
+        if 'scale_mode' in data:
+            devices[device_id]['scale_mode'] = data['scale_mode']
+            save_devices()
+            
+        return jsonify({'status': 'updated'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/immich-status', methods=['GET'])
 def immich_status():

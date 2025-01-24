@@ -1,3 +1,5 @@
+const AUTO_ASSIGN_KEY = 'autoAssignGroup';
+
 const socket = io();
 
 socket.on('connect', () => {
@@ -32,7 +34,29 @@ function updateDeviceList(devices) {
             const li = document.createElement('li');
             const status = device.active ? '🟢' : '💤';
             
-            li.textContent = `${status} ${device.name || deviceId} (${device.ip})`;
+            const deviceDiv = document.createElement('div');
+            deviceDiv.className = 'device-entry';
+            
+            const deviceText = document.createElement('span');
+            deviceText.textContent = `${status} ${device.name || deviceId} (${device.ip})`;
+            
+            const deviceControls = document.createElement('div');
+            deviceControls.className = 'device-controls';
+            
+            // Add scale mode dropdown
+            const scaleMode = document.createElement('select');
+            scaleMode.className = 'device-scale-mode';
+            scaleMode.innerHTML = `
+                <option value="crop" ${device.scale_mode === 'crop' ? 'selected' : ''}>Crop</option>
+                <option value="pad" ${device.scale_mode === 'pad' ? 'selected' : ''}>Pad</option>
+            `;
+            scaleMode.addEventListener('change', () => updateDeviceConfig(deviceId, { scale_mode: scaleMode.value }));
+            
+            deviceControls.appendChild(scaleMode);
+            deviceDiv.appendChild(deviceText);
+            deviceDiv.appendChild(deviceControls);
+            
+            li.appendChild(deviceDiv);
             li.dataset.deviceId = deviceId;
             li.draggable = true;
             li.addEventListener('dragstart', handleDragStart);
@@ -99,6 +123,7 @@ document.getElementById('assign-all-btn').addEventListener('click', () => {
 document.getElementById('auto-group').addEventListener('change', (event) => {
     const assignAllBtn = document.getElementById('assign-all-btn');
     assignAllBtn.classList.toggle('hidden', event.target.value === 'none');
+    localStorage.setItem(AUTO_ASSIGN_KEY, event.target.value);
 });
 
 function fetchGroupDevices(groupId) {
@@ -116,13 +141,27 @@ function fetchGroupDevices(groupId) {
                 const deviceText = document.createElement('span');
                 deviceText.textContent = `${status} ${device.name || device.id} (${device.ip})`;
                 
+                const deviceControls = document.createElement('div');
+                deviceControls.className = 'device-controls';
+                
+                // Add scale mode dropdown
+                const scaleMode = document.createElement('select');
+                scaleMode.className = 'device-scale-mode';
+                scaleMode.innerHTML = `
+                    <option value="crop" ${device.scale_mode === 'crop' ? 'selected' : ''}>Crop</option>
+                    <option value="pad" ${device.scale_mode === 'pad' ? 'selected' : ''}>Pad</option>
+                `;
+                scaleMode.addEventListener('change', () => updateDeviceConfig(device.device_id, { scale_mode: scaleMode.value }));
+                
                 const removeBtn = document.createElement('button');
                 removeBtn.textContent = 'Remove';
                 removeBtn.className = 'remove-device-btn';
                 removeBtn.onclick = () => removeFromGroup(device.device_id);
                 
+                deviceControls.appendChild(scaleMode);
+                deviceControls.appendChild(removeBtn);
                 deviceDiv.appendChild(deviceText);
-                deviceDiv.appendChild(removeBtn);
+                deviceDiv.appendChild(deviceControls);
                 li.appendChild(deviceDiv);
                 
                 li.dataset.deviceId = device.device_id;
@@ -604,7 +643,7 @@ function loadInitialState() {
             updateDeviceList(deviceData);
         });
 
-    // Load groups
+    // Load groups and restore auto-assign setting
     fetch('/groups')
         .then(response => response.json())
         .then(groupData => {
@@ -613,6 +652,14 @@ function loadInitialState() {
                 addGroupTab(groupId, group.name);
                 addGroupOption(groupId, group.name);
             });
+            
+            // Restore auto-assign setting
+            const savedAutoAssign = localStorage.getItem(AUTO_ASSIGN_KEY);
+            if (savedAutoAssign) {
+                const autoGroupSelect = document.getElementById('auto-group');
+                autoGroupSelect.value = savedAutoAssign;
+                document.getElementById('assign-all-btn').classList.toggle('hidden', savedAutoAssign === 'none');
+            }
         });
 }
 
@@ -628,3 +675,15 @@ window.addEventListener('beforeunload', () => {
         clearInterval(window.trackingRefreshInterval);
     }
 });
+
+function updateDeviceConfig(deviceId, config) {
+    fetch(`/devices/${deviceId}/config`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(config)
+    }).catch(error => {
+        console.error('Error updating device config:', error);
+    });
+}

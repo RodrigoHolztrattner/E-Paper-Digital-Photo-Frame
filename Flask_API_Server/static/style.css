@@ -210,6 +210,20 @@ button:hover {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 10px;
+}
+
+.device-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.device-scale-mode {
+    padding: 4px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 12px;
 }
 
 .remove-device-btn {
