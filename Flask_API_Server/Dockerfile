@@ -35,14 +35,21 @@ EXPOSE 9998/udp
 ENV FLASK_APP=flask_server.py \
     FLASK_ENV=production \
     PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    BROADCAST_INTERVAL=5.0 \
     IMMICH_URL=http://localhost \
     IMMICH_API_KEY="" \
     IMAGE_PATH=/app/images
 
-# Create simple start script
+# Create simple start script - no need for -u flag since PYTHONUNBUFFERED is set
 RUN echo '#!/bin/bash\n\
-exec python -u flask_server.py' > /app/start.sh && \
+exec python flask_server.py' > /app/start.sh && \
     chmod +x /app/start.sh
 
+# Add labels for required capabilities
+LABEL capabilities="NET_ADMIN NET_BROADCAST" \
+      description="E-Paper Digital Photo Frame Server - Requires NET_ADMIN and NET_BROADCAST capabilities"
+
+# Note: Run with --cap-add NET_ADMIN --cap-add NET_BROADCAST
 # Run the application
 CMD ["./start.sh"]

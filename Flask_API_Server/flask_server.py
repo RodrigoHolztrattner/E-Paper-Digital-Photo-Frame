@@ -51,6 +51,7 @@ global_config = load_global_config()
 BROADCAST_PORT = 9998
 DEVICE_RESPONSE_PORT = 9999
 HTTP_SERVER_PORT = 9999
+BROADCAST_INTERVAL = float(os.getenv('BROADCAST_INTERVAL', '1.0'))  # Interval in seconds
 DEVICES_FILE = './config/devices.json'
 Path('./config').mkdir(exist_ok=True)
 
@@ -143,25 +144,37 @@ threading.Thread(target=cleanup_disconnected_devices, daemon=True).start()
 
 def broadcast_server_presence():
     """Broadcasts server presence on the network"""
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-    
-    server_ip = get_local_ip()
-    
-    message = json.dumps({
-        'type': 'SERVER_BROADCAST',
-        'server_ip': server_ip,
-        'server_port': HTTP_SERVER_PORT
-    })
-    
-    while True:
-        try:
-            sock.sendto(message.encode(), ('255.255.255.255', BROADCAST_PORT))
-            time.sleep(10)
-        except Exception as e:
-            print(f"Error broadcasting server presence: {e}")
-            time.sleep(1)
+    try:
+        server_ip = get_local_ip()
+        print(f"Broadcasting server presence from IP: {server_ip} every {BROADCAST_INTERVAL} seconds")
+        
+        # Create UDP socket with broadcast capability
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        
+        # Bind to specific interface
+        sock.bind((server_ip, 0))  # Bind to the IP we want to broadcast from
+        
+        message = json.dumps({
+            'type': 'SERVER_BROADCAST',
+            'server_ip': server_ip,
+            'server_port': HTTP_SERVER_PORT
+        })
+        
+        print(f"Broadcasting message: {message}")
+        
+        while True:
+            try:
+                sock.sendto(message.encode(), ('255.255.255.255', BROADCAST_PORT))
+                time.sleep(BROADCAST_INTERVAL)  # Use the environment variable
+            except Exception as e:
+                print(f"Broadcast error: {e}")
+                time.sleep(BROADCAST_INTERVAL)
+                
+    except Exception as e:
+        print(f"Fatal broadcast error: {e}")
+        time.sleep(5)  # Wait before trying to reinitialize
 
 ################
 # FLASK SERVER #
