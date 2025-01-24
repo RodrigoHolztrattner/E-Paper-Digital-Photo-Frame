@@ -1,0 +1,239 @@
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: #f0f0f0;
+}
+
+#device-manager {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+}
+
+#immich-status, #device-list, #group-tabs, #group-area {
+    width: 80%;
+    margin: 20px 0;
+    background-color: #fff;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+}
+
+#devices, #group-tab-list {
+    list-style-type: none;
+    padding: 0;
+}
+
+#devices li, #group-tab-list li, .group-device {
+    padding: 10px;
+    border-bottom: 1px solid #ddd;
+    cursor: pointer;
+}
+
+#devices li:hover, #group-tab-list li:hover, .group-device:hover {
+    background-color: #f9f9f9;
+}
+
+button {
+    padding: 10px 20px;
+    margin-top: 10px;
+    border: none;
+    background-color: #007bff;
+    color: #fff;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+button:hover {
+    background-color: #0056b3;
+}
+
+#group-area {
+    display: none;
+}
+
+#group-area.active {
+    display: block;
+}
+
+.droppable {
+    min-height: 50px;
+    border: 2px dashed #ccc;
+    border-radius: 4px;
+    padding: 10px;
+    margin-top: 10px;
+}
+
+.droppable.drag-over {
+    border-color: #007bff;
+}
+
+/* Add styles for connection status */
+.connection-status {
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-weight: bold;
+}
+
+.connection-status.connected {
+    background-color: #4CAF50;
+    color: white;
+}
+
+.connection-status.disconnected {
+    background-color: #f44336;
+    color: white;
+}
+
+/* Add styles for the modal */
+.modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.4);
+}
+
+.modal-content {
+    background-color: #fefefe;
+    margin: 15% auto;
+    padding: 20px;
+    border: 1px solid #888;
+    width: 300px;
+    border-radius: 8px;
+}
+
+.modal input {
+    width: 100%;
+    padding: 8px;
+    margin: 10px 0;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.modal-buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 15px;
+}
+
+/* Add styles for device info popup */
+#device-info {
+    display: none;
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    z-index: 1000;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+#device-info.active {
+    display: block;
+    opacity: 1;
+}
+
+/* Update group tabs styling */
+#groups-container {
+    width: 80%;
+    margin: 20px 0;
+}
+
+#group-tabs {
+    background-color: #fff;
+    padding: 20px;
+    border-radius: 8px 8px 0 0;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+}
+
+#group-tab-list {
+    display: flex;
+    gap: 10px;
+    border-bottom: 1px solid #ddd;
+    padding-bottom: 10px;
+}
+
+#group-tab-list li {
+    padding: 8px 16px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+#group-tab-list li.active {
+    background-color: #007bff;
+    color: white;
+    border-color: #007bff;
+}
+
+#group-details {
+    background-color: #fff;
+    padding: 20px;
+    border-radius: 0 0 8px 8px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+}
+
+.group-album-info {
+    margin: 10px 0;
+    padding: 10px;
+    background-color: #f8f9fa;
+    border-radius: 4px;
+}
+
+.auto-assign-container {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.hidden {
+    display: none;
+}
+
+.device-entry {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.remove-device-btn {
+    padding: 2px 6px;
+    font-size: 12px;
+    margin: 0;
+}
+
+.config-settings {
+    margin-top: 20px;
+    padding: 10px;
+    background-color: #f8f9fa;
+    border-radius: 4px;
+}
+
+.config-item {
+    margin: 10px 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.config-item label {
+    min-width: 180px;
+}
+
+.config-item input {
+    width: 100px;
+    padding: 4px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
