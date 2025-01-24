@@ -12,10 +12,8 @@ RUN apt-get update && \
     netcat-traditional && \
     rm -rf /var/lib/apt/lists/*
 
-# Create non-root user
-RUN useradd -m -r appuser && \
-    mkdir -p /app/config /app/images && \
-    chown -R appuser:appuser /app
+# Create required directories
+RUN mkdir -p /app/config /app/images
 
 # Copy requirements first to leverage Docker cache
 COPY requirements.txt .
@@ -25,12 +23,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application files
 COPY . .
-
-# Set proper permissions
-RUN chown -R appuser:appuser /app
-
-# Switch to non-root user
-USER appuser
 
 # Create volumes for persistent data
 VOLUME [ "/app/config", "/app/images" ]
