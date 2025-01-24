@@ -87,33 +87,50 @@ devices = load_devices()
 # Register save function to run on exit
 atexit.register(save_devices)
 
+# Add HOST_IP to globals section
+HOST_IP = os.getenv('HOST_IP', None)  # Will be set via environment variable
+
 # Function to get the local IP address
 def get_local_ip():
     """Get the local IP address that can reach the network"""
+    # If HOST_IP is provided, use it
+    if HOST_IP:
+        print(f"Using configured host IP: {HOST_IP}")
+        return HOST_IP
+        
     try:
         # Try getting all network interfaces and their addresses
         import netifaces
         interfaces = netifaces.interfaces()
+        print(f"\nAvailable network interfaces: {interfaces}")
+        
         for interface in interfaces:
             addrs = netifaces.ifaddresses(interface)
-            if (netifaces.AF_INET in addrs):
+            if netifaces.AF_INET in addrs:
                 for addr in addrs[netifaces.AF_INET]:
                     ip = addr['addr']
-                    if not ip.startswith('127.'):  # Skip localhost
+                    if not ip.startswith('127.'):
                         print(f"Found IP address {ip} on interface {interface}")
+                        # Try to detect if this is a Docker bridge
+                        if 'br-' in interface:
+                            print(f"Warning: {interface} appears to be a Docker bridge interface")
                         return ip
-    except:
-        # Fallback method
-        try:
-            temp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            temp_socket.connect(("8.8.8.8", 80))
-            local_ip = temp_socket.getsockname()[0]
-            temp_socket.close()
-            print(f"Found IP address {local_ip} using fallback method")
-            return local_ip
-        except Exception as e:
-            print(f"Error in fallback IP detection: {e}")
-            return socket.gethostbyname(socket.gethostname())
+        print("No suitable IP address found in primary interfaces")
+        
+    except Exception as e:
+        print(f"Error in primary IP detection: {e}")
+    
+    # Fallback method
+    try:
+        temp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        temp_socket.connect(("8.8.8.8", 80))
+        local_ip = temp_socket.getsockname()[0]
+        temp_socket.close()
+        print(f"Found IP address {local_ip} using fallback method")
+        return local_ip
+    except Exception as e:
+        print(f"Error in fallback IP detection: {e}")
+        return socket.gethostbyname(socket.gethostname())
 
 # Add device cleanup task
 def cleanup_disconnected_devices():
@@ -144,37 +161,40 @@ threading.Thread(target=cleanup_disconnected_devices, daemon=True).start()
 
 def broadcast_server_presence():
     """Broadcasts server presence on the network"""
-    try:
-        server_ip = get_local_ip()
-        print(f"Broadcasting server presence from IP: {server_ip} every {BROADCAST_INTERVAL} seconds")
-        
-        # Create UDP socket with broadcast capability
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-        
-        # Bind to specific interface
-        sock.bind((server_ip, 0))  # Bind to the IP we want to broadcast from
-        
-        message = json.dumps({
-            'type': 'SERVER_BROADCAST',
-            'server_ip': server_ip,
-            'server_port': HTTP_SERVER_PORT
-        })
-        
-        print(f"Broadcasting message: {message}")
-        
-        while True:
-            try:
-                sock.sendto(message.encode(), ('255.255.255.255', BROADCAST_PORT))
-                time.sleep(BROADCAST_INTERVAL)  # Use the environment variable
-            except Exception as e:
-                print(f"Broadcast error: {e}")
-                time.sleep(BROADCAST_INTERVAL)
+    broadcast_count = 0
+    
+    while True:
+        try:
+            server_ip = get_local_ip()
+            print(f"\n[Broadcast {broadcast_count}] Using IP: {server_ip}")
+            
+            # Create UDP socket with broadcast capability
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+            
+            # Don't bind to specific interface to allow broadcasting on all interfaces
+            sock.bind(('0.0.0.0', 0))
+            
+            message = json.dumps({
+                'type': 'SERVER_BROADCAST',
+                'server_ip': server_ip,
+                'server_port': HTTP_SERVER_PORT
+            })
+            
+            print(f"[Broadcast {broadcast_count}] Sending message: {message}")
+            sock.sendto(message.encode(), ('255.255.255.255', BROADCAST_PORT))
+            print(f"[Broadcast {broadcast_count}] Message sent successfully")
+            
+            # Close the socket after each broadcast
+            sock.close()
+            
+            broadcast_count += 1
+            time.sleep(BROADCAST_INTERVAL)
                 
-    except Exception as e:
-        print(f"Fatal broadcast error: {e}")
-        time.sleep(5)  # Wait before trying to reinitialize
+        except Exception as e:
+            print(f"[Broadcast {broadcast_count}] Error: {e}")
+            time.sleep(BROADCAST_INTERVAL)
 
 ################
 # FLASK SERVER #
