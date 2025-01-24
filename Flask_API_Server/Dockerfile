@@ -16,8 +16,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 VOLUME [ "/app/config", "/app/images" ]
 
 # Expose ports
-EXPOSE 9999/tcp  # Flask server port
-EXPOSE 9998/udp  # Broadcast port
+EXPOSE 9999
+EXPOSE 9998
 
 # Set environment variables
 ENV FLASK_APP=flask_server.py \
