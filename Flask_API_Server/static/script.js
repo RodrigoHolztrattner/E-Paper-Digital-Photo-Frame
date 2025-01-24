@@ -13,6 +13,33 @@ socket.on('device_update', (devices) => {
 });
 
 // Create separate function to update device list
+function createDeviceEntry(device, deviceId) {
+    const deviceDiv = document.createElement('div');
+    deviceDiv.className = 'device-entry';
+    
+    const status = device.active ? '🟢' : '💤';
+    const deviceText = document.createElement('span');
+    deviceText.textContent = `${status} ${device.name || deviceId} (${device.ip})`;
+    
+    const deviceControls = document.createElement('div');
+    deviceControls.className = 'device-controls';
+    
+    // Add scale mode dropdown
+    const scaleMode = document.createElement('select');
+    scaleMode.className = 'device-scale-mode';
+    scaleMode.innerHTML = `
+        <option value="crop" ${device.scale_mode === 'crop' ? 'selected' : ''}>Crop</option>
+        <option value="pad" ${device.scale_mode === 'pad' ? 'selected' : ''}>Pad</option>
+    `;
+    scaleMode.addEventListener('change', () => updateDeviceConfig(deviceId, { scale_mode: scaleMode.value }));
+    
+    deviceControls.appendChild(scaleMode);
+    deviceDiv.appendChild(deviceText);
+    deviceDiv.appendChild(deviceControls);
+    
+    return deviceDiv;
+}
+
 function updateDeviceList(devices) {
     const deviceList = document.getElementById('devices');
     const autoGroupSelect = document.getElementById('auto-group');
@@ -32,31 +59,7 @@ function updateDeviceList(devices) {
         if (!device.group_id) {
             hasUnassignedDevices = true;
             const li = document.createElement('li');
-            const status = device.active ? '🟢' : '💤';
-            
-            const deviceDiv = document.createElement('div');
-            deviceDiv.className = 'device-entry';
-            
-            const deviceText = document.createElement('span');
-            deviceText.textContent = `${status} ${device.name || deviceId} (${device.ip})`;
-            
-            const deviceControls = document.createElement('div');
-            deviceControls.className = 'device-controls';
-            
-            // Add scale mode dropdown
-            const scaleMode = document.createElement('select');
-            scaleMode.className = 'device-scale-mode';
-            scaleMode.innerHTML = `
-                <option value="crop" ${device.scale_mode === 'crop' ? 'selected' : ''}>Crop</option>
-                <option value="pad" ${device.scale_mode === 'pad' ? 'selected' : ''}>Pad</option>
-            `;
-            scaleMode.addEventListener('change', () => updateDeviceConfig(deviceId, { scale_mode: scaleMode.value }));
-            
-            deviceControls.appendChild(scaleMode);
-            deviceDiv.appendChild(deviceText);
-            deviceDiv.appendChild(deviceControls);
-            
-            li.appendChild(deviceDiv);
+            li.appendChild(createDeviceEntry(device, deviceId));
             li.dataset.deviceId = deviceId;
             li.draggable = true;
             li.addEventListener('dragstart', handleDragStart);
@@ -134,40 +137,20 @@ function fetchGroupDevices(groupId) {
             groupDevices.innerHTML = '';
             devices.forEach(device => {
                 const li = document.createElement('li');
-                const deviceDiv = document.createElement('div');
-                deviceDiv.className = 'device-entry';
+                const deviceDiv = createDeviceEntry(device, device.device_id);
                 
-                const status = device.active ? '🟢' : '💤';
-                const deviceText = document.createElement('span');
-                deviceText.textContent = `${status} ${device.name || device.id} (${device.ip})`;
-                
-                const deviceControls = document.createElement('div');
-                deviceControls.className = 'device-controls';
-                
-                // Add scale mode dropdown
-                const scaleMode = document.createElement('select');
-                scaleMode.className = 'device-scale-mode';
-                scaleMode.innerHTML = `
-                    <option value="crop" ${device.scale_mode === 'crop' ? 'selected' : ''}>Crop</option>
-                    <option value="pad" ${device.scale_mode === 'pad' ? 'selected' : ''}>Pad</option>
-                `;
-                scaleMode.addEventListener('change', () => updateDeviceConfig(device.device_id, { scale_mode: scaleMode.value }));
-                
+                // Add remove button for group devices
                 const removeBtn = document.createElement('button');
                 removeBtn.textContent = 'Remove';
                 removeBtn.className = 'remove-device-btn';
                 removeBtn.onclick = () => removeFromGroup(device.device_id);
                 
-                deviceControls.appendChild(scaleMode);
-                deviceControls.appendChild(removeBtn);
-                deviceDiv.appendChild(deviceText);
-                deviceDiv.appendChild(deviceControls);
+                deviceDiv.querySelector('.device-controls').appendChild(removeBtn);
                 li.appendChild(deviceDiv);
                 
                 li.dataset.deviceId = device.device_id;
                 li.draggable = true;
                 li.addEventListener('dragstart', handleDragStart);
-                // Add mouseover event for device info
                 li.addEventListener('mouseover', () => showDeviceInfo(device));
                 groupDevices.appendChild(li);
             });
@@ -541,9 +524,10 @@ function showDeviceInfo(device) {
     const lastSeen = new Date(device.last_seen).toLocaleString();
     
     infoContent.innerHTML = `
-        <p><strong>Name:</strong> ${device.name}</p>
-        <p><strong>IP:</strong> ${device.ip}</p>
+        <p><strong>Name:</strong> ${device.name || device.device_id || 'Unknown'}</p>
+        <p><strong>IP:</strong> ${device.ip || 'Unknown'}</p>
         <p><strong>Status:</strong> ${device.active ? 'Active' : 'Hibernating'}</p>
+        <p><strong>Scale Mode:</strong> ${device.scale_mode || 'crop'}</p>
         <p><strong>First Seen:</strong> ${firstSeen}</p>
         <p><strong>Last Seen:</strong> ${lastSeen}</p>
         <p><strong>Width:</strong> ${device.width}</p>
@@ -683,6 +667,24 @@ function updateDeviceConfig(deviceId, config) {
             'Content-Type': 'application/json'
         },
         body: JSON.stringify(config)
+    }).then(response => {
+        if (!response.ok) throw new Error('Failed to update device config');
+        return response.json();
+    }).then(() => {
+        // Refresh device lists to ensure UI is in sync
+        fetch('/devices')
+            .then(response => response.json())
+            .then(deviceData => {
+                devices = deviceData;
+                updateDeviceList(devices);
+                // Update group device lists if needed
+                document.querySelectorAll('#group-devices').forEach(groupList => {
+                    const groupId = groupList.dataset.groupId;
+                    if (groupId) {
+                        fetchGroupDevices(groupId);
+                    }
+                });
+            });
     }).catch(error => {
         console.error('Error updating device config:', error);
     });

@@ -273,6 +273,7 @@ def init_transfer():
             return jsonify({'error': 'Group has no album assigned'}), 400
 
         print(f"Using album: {album_id} for group: {group_id}")
+        print(f"Using scale mode: {device.get('scale_mode', 'crop')} for device: {device_id}")
 
         # Use device specs stored during registration
         try:
@@ -557,32 +558,40 @@ def device_register():
             return jsonify({'error': 'Missing device ID'}), 400
             
         device_id = device_info['device_id']
-        print(f"Registering device: {device_id}")  # Debug print
-        
-        # Add registration time if device is new
-        if device_id not in devices:
-            device_info['first_seen'] = datetime.now().isoformat()
+        current_time = datetime.now().isoformat()
+        print(f"Registering device: {device_id}")
+
+        # Set IP from request
+        device_info['ip'] = request.remote_addr
             
-        # Update device info
-        device_info['last_seen'] = datetime.now().isoformat()
-        device_info['active'] = True  # Device is currently awake
-        
-        # Preserve group assignment if it exists
-        if device_id in devices and 'group_id' in devices[device_id]:
-            device_info['group_id'] = devices[device_id]['group_id']
+        # Preserve existing first_seen if it exists
+        if device_id in devices:
+            device_info['first_seen'] = devices[device_id].get('first_seen', current_time)
+            # Preserve group assignment and scale mode if they exist
+            if 'group_id' in devices[device_id]:
+                device_info['group_id'] = devices[device_id]['group_id']
+            if 'scale_mode' in devices[device_id]:
+                device_info['scale_mode'] = devices[device_id]['scale_mode']
+        else:
+            device_info['first_seen'] = current_time
+            # Set default scale mode for new devices
+            device_info['scale_mode'] = 'crop'
+            
+        # Update last seen time
+        device_info['last_seen'] = current_time
+        device_info['active'] = True
         
         devices[device_id] = device_info
-        save_devices()  # Save after each registration
-        print(f"Current devices: {devices}")  # Debug print
+        save_devices()
+        print(f"Current devices: {devices}")
         
-        # Use emit instead of socketio.emit for more reliable broadcasting
         with app.app_context():
             emit('device_update', devices, broadcast=True, namespace='/')
         
         return jsonify({'status': 'registered'})
         
     except Exception as e:
-        print(f"Error in device registration: {str(e)}")  # Debug print
+        print(f"Error in device registration: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/')
