@@ -128,6 +128,8 @@ function fetchGroupDevices(groupId) {
                 li.dataset.deviceId = device.device_id;
                 li.draggable = true;
                 li.addEventListener('dragstart', handleDragStart);
+                // Add mouseover event for device info
+                li.addEventListener('mouseover', () => showDeviceInfo(device));
                 groupDevices.appendChild(li);
             });
         });
@@ -284,6 +286,7 @@ function showGroupDetails(groupId) {
                     if (group.album) {
                         groupAlbumSelect.value = group.album;
                         fetchAlbumTracking(groupId, group.album);
+                        startTrackingAutoRefresh(groupId, group.album); // Start auto-refresh
                     }
                 });
             
@@ -300,10 +303,25 @@ function fetchAlbumTracking(groupId, albumId) {
         .then(tracking => {
             const infoDiv = document.querySelector('.group-album-info');
             infoDiv.innerHTML = `
-                <p>Images shown: ${tracking.shown_count} / ${tracking.total_count}</p>
+                <p>Album Images: ${tracking.shown_count} / ${tracking.total_count}</p>
                 <button onclick="resetTracking('${groupId}', '${albumId}')">Reset Tracking</button>
             `;
         });
+}
+
+// Add auto-refresh for album tracking
+function startTrackingAutoRefresh(groupId, albumId) {
+    // Clear any existing refresh interval
+    if (window.trackingRefreshInterval) {
+        clearInterval(window.trackingRefreshInterval);
+    }
+    
+    // Set up new refresh interval if both IDs are present
+    if (groupId && albumId) {
+        window.trackingRefreshInterval = setInterval(() => {
+            fetchAlbumTracking(groupId, albumId);
+        }, 5000); // Refresh every 5 seconds
+    }
 }
 
 function resetTracking(groupId, albumId) {
@@ -425,13 +443,23 @@ function handleGroupNameChange(event) {
 
 function handleGroupAlbumChange(event) {
     const groupId = event.target.dataset.groupId;
-    const albumName = event.target.value;
+    const albumId = event.target.value;
     fetch(`/groups/${groupId}`, {
         method: 'PUT',
         headers: {
             'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ album: albumName })
+        body: JSON.stringify({ album: albumId })
+    }).then(() => {
+        if (albumId) {
+            fetchAlbumTracking(groupId, albumId);
+            startTrackingAutoRefresh(groupId, albumId);
+        } else {
+            // Clear refresh interval if no album selected
+            if (window.trackingRefreshInterval) {
+                clearInterval(window.trackingRefreshInterval);
+            }
+        }
     });
 }
 
@@ -592,4 +620,11 @@ function loadInitialState() {
 document.addEventListener('DOMContentLoaded', function() {
     loadInitialState();
     fetchImmichStatus();
+});
+
+// Clean up refresh interval when switching groups or closing page
+window.addEventListener('beforeunload', () => {
+    if (window.trackingRefreshInterval) {
+        clearInterval(window.trackingRefreshInterval);
+    }
 });

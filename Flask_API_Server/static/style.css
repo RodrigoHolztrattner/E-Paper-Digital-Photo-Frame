@@ -197,6 +197,11 @@ button:hover {
     margin-top: 10px;
 }
 
+.auto-assign-container span {
+    color: #666;
+    font-size: 14px;
+}
+
 .hidden {
     display: none;
 }

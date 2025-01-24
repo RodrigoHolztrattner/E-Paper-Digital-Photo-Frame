@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Device Manager</title>
+    <title>E-Ink Immich Photo Device Manager</title>
     <link rel="stylesheet" href="/static/style.css">
     <!-- Add Socket.IO client -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
 </head>
 <body>
     <div id="device-manager">
-        <h1>Device Manager</h1>
+        <h1>E-Ink Immich Photo Device Manager</h1>
         <div id="immich-status">
             <h2>Immich Connection</h2>
             <p id="immich-server">Server: <span></span></p>
@@ -39,6 +39,7 @@
             <h2>Unassigned Devices</h2>
             <ul id="devices" class="droppable"></ul>
             <div class="auto-assign-container">
+                <span>Album auto-assign:</span>
                 <select id="auto-group">
                     <option value="none">None</option>
                 </select>
