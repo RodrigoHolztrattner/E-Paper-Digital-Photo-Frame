@@ -1,5 +1,10 @@
-Flask==3.1.0
-Flask_SocketIO==5.5.1
+flask==3.0.0
+flask-socketio==5.3.6
 numpy==2.2.2
-Pillow
-Requests==2.32.3
+pillow==10.1.0
+requests==2.31.0
+python-socketio==5.10.0
+gunicorn==21.2.0
+eventlet==0.33.3
+netifaces==0.11.0
+python-dotenv==1.0.0

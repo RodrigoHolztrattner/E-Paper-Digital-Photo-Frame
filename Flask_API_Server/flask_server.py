@@ -15,6 +15,35 @@ import json
 import requests  # Add this at the top with other imports
 import atexit
 
+GLOBAL_CONFIG_FILE = './config/global_config.json'
+
+def load_global_config():
+    """Load or create global configuration"""
+    default_config = {
+        'wakeup_interval': int(os.getenv('WAKEUP_INTERVAL', '60')),
+        'immich': {
+            'url': 'http://localhost',
+            'api_key': ''
+        }
+    }
+    
+    try:
+        if os.path.exists(GLOBAL_CONFIG_FILE):
+            with open(GLOBAL_CONFIG_FILE, 'r') as f:
+                return {**default_config, **json.load(f)}
+    except Exception as e:
+        print(f"Error loading global config: {e}")
+    
+    # Save default config if file doesn't exist
+    Path(GLOBAL_CONFIG_FILE).parent.mkdir(parents=True, exist_ok=True)
+    with open(GLOBAL_CONFIG_FILE, 'w') as f:
+        json.dump(default_config, f, indent=4)
+    
+    return default_config
+
+# Load global configuration
+global_config = load_global_config()
+
 ###########
 # GLOBALS #
 ###########
@@ -25,35 +54,13 @@ HTTP_SERVER_PORT = 9999
 DEVICES_FILE = './config/devices.json'
 Path('./config').mkdir(exist_ok=True)
 
-CONFIG_FILE = './config/config.json'
-DEFAULT_CONFIG = {
-    'wakeup_interval': 60,
-    'rotation': 0,
-    'enhanced': 1.0,
-    'contrast': 1.0
-}
-
-def load_config():
-    try:
-        with open(CONFIG_FILE, 'r') as f:
-            return {**DEFAULT_CONFIG, **json.load(f)}
-    except (FileNotFoundError, json.JSONDecodeError):
-        return DEFAULT_CONFIG.copy()
-
-def save_config(config):
-    Path(CONFIG_FILE).parent.mkdir(parents=True, exist_ok=True)
-    with open(CONFIG_FILE, 'w') as f:
-        json.dump(config, f, indent=4)
-
-config = load_config()
-
 app = Flask(__name__, static_folder='static', template_folder='templates')
 socketio = SocketIO(app)
 immich = ImmichHelper(
-    url=os.getenv('IMMICH_URL', 'http://localhost'),
+    config_path='./config/immich_config.json',
     image_path=os.getenv('IMAGE_PATH', './images'),
-    api_key=os.getenv('IMMICH_API_KEY'),
-    config=config
+    server_url=os.getenv('IMMICH_URL', global_config['immich']['url']),
+    api_key=os.getenv('IMMICH_API_KEY', global_config['immich']['api_key'])
 )
 
 active_transfers = {}
@@ -194,7 +201,8 @@ def device_log():
 
 @app.route('/wakeup-interval', methods=['GET'])
 def wakeup_interval():
-    return jsonify(interval=config['wakeup_interval'] * 60)  # Convert minutes to seconds
+    interval = global_config['wakeup_interval']
+    return jsonify(interval=interval * 60)
 
 @app.route('/init-transfer', methods=['POST'])
 def init_transfer():
@@ -242,11 +250,11 @@ def init_transfer():
         # Use device specs stored during registration
         try:
             image_id, image_bytes = immich.get_random_image(
-                group_id=group_id,
-                album_id=album_id,  # Changed from album_name to album_id
+                album_id=album_id,  # Only pass the album_id
                 width=device['width'],
                 height=device['height'], 
-                scale_mode=ImmichScaleMode.CROP
+                scale_mode=ImmichScaleMode.CROP,
+                group_id=group_id  # Add group_id parameter
             )
         except Exception as e:
             print(f"Error retrieving image: {str(e)}")
@@ -401,7 +409,7 @@ def get_devices():
 @app.route('/devices/<device_id>/group', methods=['PUT'])
 def assign_device_to_group(device_id):
     try:
-        if device_id not in devices:
+        if (device_id not in devices):
             return jsonify({'error': 'Device not found'}), 404
 
         data = request.get_json()
@@ -440,22 +448,33 @@ def get_device_info(device_id):
 @app.route('/immich-status', methods=['GET'])
 def immich_status():
     try:
-        url = f"{os.getenv('IMMICH_URL', 'http://localhost')}/api/albums"
+        url = f"{immich.server_url}/api/albums"
         response = requests.get(url, headers=immich._get_headers(), timeout=5)
         response.raise_for_status()
         albums = response.json()
+        num_albums = len(albums)
+        num_images = sum(len(album['assets']) for album in albums)
         return jsonify({
-            'server': os.getenv('IMMICH_URL', 'http://localhost'),
+            'server': immich.server_url,  # Use server_url here too
             'connected': True,
-            'albums': len(albums),
-            'config': config
+            'albums': num_albums,
+            'images': num_images,
+            'wakeup_interval': global_config['wakeup_interval'],
+            'rotation': immich.config['immich']['rotation'],
+            'enhanced': immich.config['immich']['enhanced'],
+            'contrast': immich.config['immich']['contrast']
         })
     except Exception as e:
+        print(f"Error connecting to Immich: {str(e)}")
         return jsonify({
-            'server': os.getenv('IMMICH_URL', 'http://localhost'),
+            'server': immich.server_url,  # And here
             'connected': False,
             'albums': 0,
-            'config': config
+            'images': 0,
+            'wakeup_interval': global_config['wakeup_interval'],
+            'rotation': immich.config['immich']['rotation'],
+            'enhanced': immich.config['immich']['enhanced'],
+            'contrast': immich.config['immich']['contrast']
         })
 
 @app.route('/groups/<group_id>/devices', methods=['GET'])
@@ -472,13 +491,13 @@ def get_group_devices(group_id):
 @app.route('/albums', methods=['GET'])
 def get_albums():
     try:
-        url = f"{immich.config['immich']['url']}/api/albums"
+        url = f"{immich.server_url}/api/albums"  # Use server_url instead of config
         response = requests.get(url, headers=immich._get_headers())
         response.raise_for_status()
         albums = [
             {
                 'id': album['id'],
-                'albumName': album['albumName']  # Make sure we're sending the album name
+                'albumName': album['albumName']
             }
             for album in response.json()
         ]
@@ -528,17 +547,6 @@ def device_register():
 def index():
     return render_template("index.html")
 
-@app.route('/config', methods=['PUT'])
-def update_config():
-    try:
-        new_config = request.get_json()
-        config.update(new_config)
-        save_config(config)
-        immich.update_config(config)
-        return jsonify({'status': 'updated'})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
 # Add function to load saved groups
 def load_groups():
     """Load groups from config files"""
@@ -566,19 +574,7 @@ validate_device_groups()  # Add this line after loading both devices and groups
 def get_album_tracking(group_id, album_id):
     """Get tracking info for a group's album"""
     try:
-        tracker = immich._get_group_tracker(group_id)
-        if not tracker:
-            return jsonify({'error': 'Group not found'}), 404
-
-        # Get all assets for the album
-        url = f"{immich.config['immich']['url']}/api/albums/{album_id}"
-        response = requests.get(url, headers=immich._get_headers())
-        response.raise_for_status()
-        
-        album_data = response.json()
-        total_count = len(album_data['assets'])
-        shown_count = len(tracker.get_tracked_ids())
-
+        total_count, shown_count = immich.get_group_tracking_stats(group_id, album_id)
         return jsonify({
             'total_count': total_count,
             'shown_count': shown_count
@@ -591,14 +587,37 @@ def get_album_tracking(group_id, album_id):
 def reset_album_tracking(group_id, album_id):
     """Reset tracking for a group's album"""
     try:
-        tracker = immich._get_group_tracker(group_id)
-        if not tracker:
-            return jsonify({'error': 'Group not found'}), 404
-
-        tracker.reset_tracking()
+        immich._reset_group_tracking(group_id)
         return jsonify({'status': 'reset successful'})
     except Exception as e:
         print(f"Error resetting album tracking: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+# Add default wakeup interval to global config
+global_config = {
+    'wakeup_interval': int(os.getenv('WAKEUP_INTERVAL', '60'))
+}
+
+@app.route('/config/wakeup-interval', methods=['PUT'])
+def update_wakeup_interval():
+    try:
+        data = request.get_json()
+        interval = int(data.get('wakeup_interval', 60))
+        global_config['wakeup_interval'] = interval
+        return jsonify({'status': 'updated'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/config/immich', methods=['PUT'])
+def update_immich_config():
+    try:
+        data = request.get_json()
+        valid_keys = ['rotation', 'enhanced', 'contrast']
+        update_data = {k: data[k] for k in valid_keys if k in data}
+        if update_data:
+            immich.update_config({'immich': update_data})
+        return jsonify({'status': 'updated'})
+    except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 ########
@@ -608,4 +627,4 @@ def reset_album_tracking(group_id, album_id):
 # Run the Flask server
 if __name__ == '__main__':
     threading.Thread(target=broadcast_server_presence, daemon=True).start()
-    socketio.run(app, host='0.0.0.0', port=HTTP_SERVER_PORT, allow_unsafe_werkzeug=True)
+    socketio.run(app, host='0.0.0.0', port=HTTP_SERVER_PORT)

@@ -500,7 +500,29 @@ document.addEventListener('mouseleave', function(event) {
     infoPopup.classList.remove('active');
 }, true);
 
-// Update Immich status handling
+// Replace the save button click handler with input change handlers
+['wakeup-interval', 'rotation', 'enhanced', 'contrast'].forEach(setting => {
+    document.getElementById(`${setting}-input`).addEventListener('change', (event) => {
+        const value = parseFloat(event.target.value);
+        const endpoint = setting === 'wakeup-interval' ? '/config/wakeup-interval' : '/config/immich';
+        const payload = setting === 'wakeup-interval' 
+            ? { wakeup_interval: value }
+            : { [setting]: value };
+
+        fetch(endpoint, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        }).catch(error => {
+            console.error(`Error updating ${setting}:`, error);
+            // Revert to previous value on error
+            fetchImmichStatus();
+        });
+    });
+});
+
 function updateImmichStatus(status) {
     const serverSpan = document.querySelector('#immich-server span');
     const connectionSpan = document.querySelector('#immich-connection span');
@@ -511,36 +533,30 @@ function updateImmichStatus(status) {
     connectionSpan.className = `connection-status ${status.connected ? 'connected' : 'disconnected'}`;
     albumsSpan.textContent = status.albums;
 
-    // Update config inputs
-    document.getElementById('wakeup-interval').value = status.config.wakeup_interval;
-    document.getElementById('rotation').value = status.config.rotation;
-    document.getElementById('enhanced').value = status.config.enhanced;
-    document.getElementById('contrast').value = status.config.contrast;
+    // Update configuration inputs
+    document.getElementById('wakeup-interval-input').value = status.wakeup_interval;
+    document.getElementById('rotation-input').value = status.rotation;
+    document.getElementById('enhanced-input').value = status.enhanced;
+    document.getElementById('contrast-input').value = status.contrast;
 }
 
-document.getElementById('save-config').addEventListener('click', function() {
-    const config = {
-        wakeup_interval: parseInt(document.getElementById('wakeup-interval').value),
-        rotation: parseInt(document.getElementById('rotation').value),
-        enhanced: parseFloat(document.getElementById('enhanced').value),
-        contrast: parseFloat(document.getElementById('contrast').value)
-    };
-
-    fetch('/config', {
-        method: 'PUT',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(config)
-    }).then(response => {
-        if (!response.ok) throw new Error('Failed to update config');
-        return response.json();
-    }).then(() => {
-        fetchImmichStatus(); // Refresh status to confirm changes
-    }).catch(error => {
-        console.error('Error updating config:', error);
-    });
-});
+function fetchImmichStatus() {
+    fetch('/immich-status')
+        .then(response => response.json())
+        .then(status => {
+            updateImmichStatus(status);
+            document.getElementById('wakeup-interval-input').value = status.wakeup_interval;
+        })
+        .catch(error => {
+            console.error('Error fetching Immich status:', error);
+            updateImmichStatus({
+                server: 'Unknown',
+                connected: false,
+                albums: 0,
+                images: 0
+            });
+        });
+}
 
 // Poll Immich status every 30 seconds
 fetchImmichStatus();
