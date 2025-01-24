@@ -608,4 +608,4 @@ def reset_album_tracking(group_id, album_id):
 # Run the Flask server
 if __name__ == '__main__':
     threading.Thread(target=broadcast_server_presence, daemon=True).start()
-    socketio.run(app, host='0.0.0.0', port=HTTP_SERVER_PORT)
+    socketio.run(app, host='0.0.0.0', port=HTTP_SERVER_PORT, allow_unsafe_werkzeug=True)
