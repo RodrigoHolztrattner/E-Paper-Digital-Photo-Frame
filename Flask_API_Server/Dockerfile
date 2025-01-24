@@ -54,22 +54,19 @@ HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:9999/ || exit 1
 
 # Create start script
-COPY <<EOF /app/start.sh
-#!/bin/bash
-exec gunicorn \
-    --bind 0.0.0.0:9999 \
-    --workers \$GUNICORN_WORKERS \
-    --threads \$GUNICORN_THREADS \
-    --worker-class eventlet \
-    --timeout 120 \
-    --keep-alive 5 \
-    --log-level info \
-    --access-logfile - \
-    --error-logfile - \
-    'flask_server:app'
-EOF
-
-RUN chmod +x /app/start.sh
+RUN echo '#!/bin/bash\n\
+exec gunicorn \\\n\
+    --bind 0.0.0.0:9999 \\\n\
+    --workers $GUNICORN_WORKERS \\\n\
+    --threads $GUNICORN_THREADS \\\n\
+    --worker-class eventlet \\\n\
+    --timeout 120 \\\n\
+    --keep-alive 5 \\\n\
+    --log-level info \\\n\
+    --access-logfile - \\\n\
+    --error-logfile - \\\n\
+    "flask_server:app"' > /app/start.sh && \
+    chmod +x /app/start.sh
 
 # Run the application
 CMD ["./start.sh"]
