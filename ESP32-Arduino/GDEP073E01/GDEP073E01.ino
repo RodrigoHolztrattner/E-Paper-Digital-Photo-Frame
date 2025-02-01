@@ -14,10 +14,6 @@
 
 #define S_To_uS_Factor 1000000ULL      //Conversion factor for micro seconds to seconds 
 
-// Communication method define
-#define COMM_METHOD_HTTP 1
-#define CURRENT_COMM_METHOD COMM_METHOD_HTTP
-
 // Server endpoints
 #define DEVICE_REGISTER_ENDPOINT "/device-register"
 #define INIT_IMAGE_TRANSFER_ENDPOINT "/init-transfer"
@@ -28,7 +24,6 @@
 
 #define BYTES_PER_PIXEL 1
 
-#define BROADCAST_INTERVAL 10000  // Broadcast interval in milliseconds
 #define BROADCAST_PORT 9998       // Broadcast port
 #define BROADCAST_TIMEOUT 60000   // Broadcast mode timeout in milliseconds
 
@@ -48,11 +43,9 @@
 #define RGB_CYAN 6
 #define RGB_WHITE 7
 
-WiFiUDP  s_udp;
-String   s_server_ip               = "";
-bool     s_is_connected_to_server  = false;
-bool     s_is_broadcasting_enabled = false;
-uint16_t s_server_port             = 0;
+/////////////
+// STRUCTS //
+/////////////
 
 enum LogLevel 
 {
@@ -72,6 +65,12 @@ struct HttpResponse
 /////////////
 // GLOBALS //
 /////////////
+
+WiFiUDP  s_udp;
+String   s_server_ip               = "";
+bool     s_is_connected_to_server  = false;
+bool     s_is_broadcasting_enabled = false;
+uint16_t s_server_port             = 0;
 
 const char*    s_wifi_ssid        = "Deviceland"; // Your WiFi SSID
 const char*    s_wifi_password    = "Nina001122"; // Your WiFi Password
@@ -162,10 +161,6 @@ void loop()
             }
         }
     }
-
-    cleanup();
-
-    delay(1000);
 
     hibernate(sleep_interval);
 }
@@ -409,7 +404,18 @@ void cleanup()
 
 void hibernate(int interval) 
 {
-    esp_sleep_enable_timer_wakeup(interval * S_To_uS_Factor);  // Convert to microseconds
+    uint64_t sleep_time = interval * S_To_uS_Factor;
+    
+    // Log actual microseconds for debugging
+    char msg[64];
+    snprintf(msg, sizeof(msg), "Setting sleep timer for %llu microseconds", sleep_time);
+    log_message(msg, LOG_INFO);
+
+    cleanup();
+
+    delay(1000);
+    
+    esp_sleep_enable_timer_wakeup(sleep_time);
     esp_deep_sleep_start();
 }
 
